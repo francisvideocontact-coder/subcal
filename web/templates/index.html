@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SubCal — Recalibrage SRT</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">SubCal<span class="logo-tag">v2</span></div>
+  <div class="header-actions">
+    <button id="btn-batch-toggle" class="btn btn-ghost" title="Mode batch">
+      Batch
+    </button>
+  </div>
+</header>
+
+<!-- ── MAIN LAYOUT ─────────────────────────────────────────────────────────── -->
+<main id="app">
+
+  <!-- ── IMPORT PANEL (single) ─────────────────────────────────────────────── -->
+  <section id="import-panel" class="panel panel--import">
+
+    <!-- Drop zone -->
+    <div id="drop-zone" class="drop-zone">
+      <div class="drop-icon">⬇</div>
+      <p>Glisse un fichier <strong>.srt</strong> ici</p>
+      <p class="drop-sub">ou</p>
+      <label class="btn btn-primary" for="file-input">Choisir un fichier</label>
+      <input type="file" id="file-input" accept=".srt" hidden>
+    </div>
+
+    <!-- Format selector -->
+    <div class="format-selector">
+      <span class="label">Format</span>
+      <div class="format-btns">
+        <button class="btn-format active" data-format="16:9">16:9</button>
+        <button class="btn-format" data-format="9:16">9:16</button>
+        <button class="btn-format" data-format="1:1">1:1</button>
+      </div>
+    </div>
+
+    <!-- Config panel -->
+    <details class="config-panel" id="config-details">
+      <summary>Paramètres avancés</summary>
+      <div class="config-grid">
+        <div class="config-row">
+          <label>CPL max <span id="lbl-cpl">40</span></label>
+          <input type="range" id="cfg-cpl" min="15" max="60" value="40" step="1">
+        </div>
+        <div class="config-row">
+          <label>CPS max <span id="lbl-cps">20</span></label>
+          <input type="range" id="cfg-cps" min="12" max="25" value="20" step="0.5">
+        </div>
+        <div class="config-row">
+          <label>Lignes max <span id="lbl-lines">2</span></label>
+          <input type="range" id="cfg-lines" min="1" max="3" value="2" step="1">
+        </div>
+        <div class="config-row">
+          <label>Durée min (s) <span id="lbl-mindur">1.0</span></label>
+          <input type="range" id="cfg-mindur" min="0.5" max="2" value="1.0" step="0.1">
+        </div>
+        <div class="config-row">
+          <label>Durée max (s) <span id="lbl-maxdur">10</span></label>
+          <input type="range" id="cfg-maxdur" min="5" max="15" value="10" step="0.5">
+        </div>
+        <div class="config-row">
+          <label>Gap min (ms) <span id="lbl-gap">120</span></label>
+          <input type="range" id="cfg-gap" min="80" max="300" value="120" step="10">
+        </div>
+        <div class="config-row config-fps">
+          <label>FPS source</label>
+          <select id="cfg-fps-src">
+            <option value="">— aucun —</option>
+            <option value="23.976">23.976</option>
+            <option value="24">24</option>
+            <option value="25" selected>25</option>
+            <option value="29.97">29.97</option>
+            <option value="30">30</option>
+            <option value="50">50</option>
+            <option value="59.94">59.94</option>
+            <option value="60">60</option>
+          </select>
+          <label>FPS cible</label>
+          <select id="cfg-fps-tgt">
+            <option value="">— aucun —</option>
+            <option value="23.976">23.976</option>
+            <option value="24">24</option>
+            <option value="25">25</option>
+            <option value="29.97">29.97</option>
+            <option value="30">30</option>
+            <option value="50">50</option>
+            <option value="59.94">59.94</option>
+            <option value="60">60</option>
+          </select>
+        </div>
+        <div class="config-row config-toggle">
+          <label>
+            <input type="checkbox" id="cfg-semantic" checked>
+            Segmentation sémantique
+          </label>
+        </div>
+      </div>
+    </details>
+
+    <!-- FPS badge -->
+    <div id="fps-badge" class="fps-badge hidden">
+      Conversion framerate active
+    </div>
+
+    <button id="btn-calibrate" class="btn btn-primary btn-lg" disabled>
+      Calibrer
+    </button>
+  </section>
+
+  <!-- ── BATCH PANEL ────────────────────────────────────────────────────────── -->
+  <section id="batch-panel" class="panel panel--batch hidden">
+    <div id="batch-drop-zone" class="drop-zone drop-zone--batch">
+      <div class="drop-icon">⬇</div>
+      <p>Glisse plusieurs fichiers <strong>.srt</strong> ici</p>
+      <label class="btn btn-primary" for="batch-file-input">Choisir des fichiers</label>
+      <input type="file" id="batch-file-input" accept=".srt" multiple hidden>
+    </div>
+    <div id="batch-file-list" class="batch-file-list hidden"></div>
+    <div class="format-selector">
+      <span class="label">Format</span>
+      <div class="format-btns" id="batch-format-btns">
+        <button class="btn-format active" data-format="16:9">16:9</button>
+        <button class="btn-format" data-format="9:16">9:16</button>
+        <button class="btn-format" data-format="1:1">1:1</button>
+      </div>
+    </div>
+    <button id="btn-batch-calibrate" class="btn btn-primary btn-lg" disabled>
+      Calibrer tous et exporter ZIP
+    </button>
+    <div id="batch-results" class="batch-results hidden"></div>
+  </section>
+
+  <!-- ── EDITOR PANEL ───────────────────────────────────────────────────────── -->
+  <section id="editor-panel" class="panel panel--editor hidden">
+
+    <!-- Top bar -->
+    <div class="editor-topbar">
+      <div class="editor-info">
+        <span id="editor-filename" class="filename"></span>
+        <span id="editor-report" class="report-badge"></span>
+      </div>
+      <div class="editor-actions">
+        <label class="btn btn-ghost">
+          <input type="checkbox" id="filter-modified"> Modifiés seulement
+        </label>
+        <label class="btn btn-ghost">
+          <input type="checkbox" id="filter-errors"> Erreurs seulement
+        </label>
+        <button id="btn-compare" class="btn btn-ghost">Avant / Après</button>
+        <button id="btn-export" class="btn btn-primary">Exporter SRT</button>
+        <button id="btn-new" class="btn btn-ghost">← Nouveau fichier</button>
+      </div>
+    </div>
+
+    <!-- 2-column layout: list + preview -->
+    <div class="editor-body">
+
+      <!-- Block list -->
+      <div class="block-list-container">
+        <div id="block-list" class="block-list"></div>
+      </div>
+
+      <!-- Preview + player -->
+      <aside class="preview-panel">
+
+        <!-- Format toggle in preview -->
+        <div class="preview-format-toggle">
+          <button class="btn-format-preview active" data-ratio="16:9">16:9</button>
+          <button class="btn-format-preview" data-ratio="9:16">9:16</button>
+          <button class="btn-format-preview" data-ratio="1:1">1:1</button>
+        </div>
+
+        <!-- Video preview frame -->
+        <div class="preview-wrap" id="preview-wrap">
+          <div class="preview-frame" id="preview-frame">
+            <div class="preview-safe-zone" id="preview-safe"></div>
+            <div class="preview-subtitle" id="preview-subtitle"></div>
+            <!-- Optional background image overlay -->
+            <img id="preview-bg" class="preview-bg hidden" alt="">
+          </div>
+          <label class="btn btn-ghost btn-sm preview-bg-btn" for="preview-bg-input">
+            + Fond
+          </label>
+          <input type="file" id="preview-bg-input" accept="image/*" hidden>
+        </div>
+
+        <!-- Mini player -->
+        <div class="player">
+          <div class="player-timecode" id="player-tc">00:00:00,000</div>
+          <div class="player-progress-wrap">
+            <div class="player-progress" id="player-progress">
+              <div class="player-cursor" id="player-cursor"></div>
+            </div>
+          </div>
+          <div class="player-controls">
+            <button id="btn-play" class="btn-play" title="Play/Pause">▶</button>
+            <select id="player-speed" class="player-speed" title="Vitesse">
+              <option value="0.5">0.5×</option>
+              <option value="1" selected>1×</option>
+              <option value="1.5">1.5×</option>
+              <option value="2">2×</option>
+            </select>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── LOADING OVERLAY ─────────────────────────────────────────────────────── -->
+<div id="loading" class="loading hidden">
+  <div class="spinner"></div>
+  <p>Calibrage en cours…</p>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
