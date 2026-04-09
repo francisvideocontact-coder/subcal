@@ -12,36 +12,36 @@
 <header>
   <div class="logo">SubCal<span class="logo-tag">v2</span></div>
   <div class="header-actions">
-    <button id="btn-batch-toggle" class="btn btn-ghost" title="Mode batch">
-      Batch
-    </button>
+    <button id="btn-batch-toggle" class="btn btn-ghost">Batch</button>
   </div>
 </header>
 
-<!-- ── MAIN LAYOUT ─────────────────────────────────────────────────────────── -->
-<main id="app">
+<!-- ── 3-COLUMN LAYOUT ─────────────────────────────────────────────────────── -->
+<div id="app" class="app-layout">
 
-  <!-- ── IMPORT PANEL (single) ─────────────────────────────────────────────── -->
-  <section id="import-panel" class="panel panel--import">
+  <!-- ════════════════════════════════════════════════════════════
+       LEFT SIDEBAR — toujours visible
+       ════════════════════════════════════════════════════════════ -->
+  <aside class="sidebar-left">
 
-    <!-- Drop zone -->
+    <!-- Drop zone (compact après chargement) -->
     <div id="drop-zone" class="drop-zone">
       <div class="drop-icon">⬇</div>
-      <p>Glisse un fichier <strong>.srt</strong> ici</p>
-      <p class="drop-sub">ou</p>
-      <label class="btn btn-primary" for="file-input">Choisir un fichier</label>
+      <p id="drop-label">Glisse un <strong>.srt</strong> ici</p>
+      <label class="btn btn-sm btn-ghost" for="file-input">Parcourir</label>
       <input type="file" id="file-input" accept=".srt" hidden>
     </div>
 
     <!-- Format selector -->
-    <div class="format-selector">
-      <span class="label">Format</span>
-      <div class="format-btns">
-        <button class="btn-format active" data-format="16:9">16:9</button>
-        <button class="btn-format" data-format="9:16">9:16</button>
-        <button class="btn-format" data-format="1:1">1:1</button>
-      </div>
+    <div class="section-label">Format</div>
+    <div class="format-btns" id="format-btns">
+      <button class="btn-format active" data-format="16:9">16:9</button>
+      <button class="btn-format" data-format="9:16">9:16</button>
+      <button class="btn-format" data-format="1:1">1:1</button>
     </div>
+
+    <!-- FPS badge -->
+    <div id="fps-badge" class="fps-badge hidden">Conversion FPS active</div>
 
     <!-- Config panel -->
     <details class="config-panel" id="config-details">
@@ -74,7 +74,7 @@
         <div class="config-row config-fps">
           <label>FPS source</label>
           <select id="cfg-fps-src">
-            <option value="">— aucun —</option>
+            <option value="">—</option>
             <option value="23.976">23.976</option>
             <option value="24">24</option>
             <option value="25" selected>25</option>
@@ -86,7 +86,7 @@
           </select>
           <label>FPS cible</label>
           <select id="cfg-fps-tgt">
-            <option value="">— aucun —</option>
+            <option value="">—</option>
             <option value="23.976">23.976</option>
             <option value="24">24</option>
             <option value="25">25</option>
@@ -106,122 +106,119 @@
       </div>
     </details>
 
-    <!-- FPS badge -->
-    <div id="fps-badge" class="fps-badge hidden">
-      Conversion framerate active
-    </div>
-
+    <!-- Calibrate button + status -->
     <button id="btn-calibrate" class="btn btn-primary btn-lg" disabled>
       Calibrer
     </button>
-  </section>
+    <div id="report-badge" class="report-badge hidden"></div>
 
-  <!-- ── BATCH PANEL ────────────────────────────────────────────────────────── -->
-  <section id="batch-panel" class="panel panel--batch hidden">
-    <div id="batch-drop-zone" class="drop-zone drop-zone--batch">
-      <div class="drop-icon">⬇</div>
-      <p>Glisse plusieurs fichiers <strong>.srt</strong> ici</p>
-      <label class="btn btn-primary" for="batch-file-input">Choisir des fichiers</label>
-      <input type="file" id="batch-file-input" accept=".srt" multiple hidden>
+    <!-- Export (visible après calibration) -->
+    <div id="sidebar-actions" class="sidebar-actions hidden">
+      <button id="btn-export" class="btn btn-ghost btn-full">Exporter SRT</button>
+      <label class="btn btn-ghost btn-full">
+        <input type="checkbox" id="filter-modified"> Modifiés seulement
+      </label>
+      <label class="btn btn-ghost btn-full">
+        <input type="checkbox" id="filter-errors"> Erreurs seulement
+      </label>
+      <button id="btn-compare" class="btn btn-ghost btn-full">Avant / Après</button>
     </div>
-    <div id="batch-file-list" class="batch-file-list hidden"></div>
-    <div class="format-selector">
-      <span class="label">Format</span>
-      <div class="format-btns" id="batch-format-btns">
-        <button class="btn-format active" data-format="16:9">16:9</button>
-        <button class="btn-format" data-format="9:16">9:16</button>
-        <button class="btn-format" data-format="1:1">1:1</button>
-      </div>
+
+  </aside>
+
+  <!-- ════════════════════════════════════════════════════════════
+       CENTER — état vide / blocs
+       ════════════════════════════════════════════════════════════ -->
+  <main class="center-panel">
+
+    <!-- Empty state -->
+    <div id="empty-state" class="empty-state">
+      <div class="empty-icon">⬇</div>
+      <p>Glisse un fichier <strong>.srt</strong> dans le panneau gauche<br>pour commencer</p>
     </div>
-    <button id="btn-batch-calibrate" class="btn btn-primary btn-lg" disabled>
-      Calibrer tous et exporter ZIP
-    </button>
-    <div id="batch-results" class="batch-results hidden"></div>
-  </section>
 
-  <!-- ── EDITOR PANEL ───────────────────────────────────────────────────────── -->
-  <section id="editor-panel" class="panel panel--editor hidden">
-
-    <!-- Top bar -->
-    <div class="editor-topbar">
-      <div class="editor-info">
+    <!-- Block list (hidden until file loaded) -->
+    <div id="block-list-wrap" class="block-list-wrap hidden">
+      <div id="block-list-header" class="block-list-header">
         <span id="editor-filename" class="filename"></span>
-        <span id="editor-report" class="report-badge"></span>
+        <span id="block-count" class="text-dim"></span>
+        <span id="calibrated-badge" class="calibrated-badge hidden">Calibré</span>
       </div>
-      <div class="editor-actions">
-        <label class="btn btn-ghost">
-          <input type="checkbox" id="filter-modified"> Modifiés seulement
-        </label>
-        <label class="btn btn-ghost">
-          <input type="checkbox" id="filter-errors"> Erreurs seulement
-        </label>
-        <button id="btn-compare" class="btn btn-ghost">Avant / Après</button>
-        <button id="btn-export" class="btn btn-primary">Exporter SRT</button>
-        <button id="btn-new" class="btn btn-ghost">← Nouveau fichier</button>
+      <div id="block-list" class="block-list"></div>
+    </div>
+
+    <!-- Batch panel (hidden by default) -->
+    <div id="batch-panel" class="batch-panel hidden">
+      <div id="batch-drop-zone" class="drop-zone drop-zone--batch">
+        <div class="drop-icon">⬇</div>
+        <p>Glisse plusieurs <strong>.srt</strong> ici</p>
+        <label class="btn btn-primary" for="batch-file-input">Choisir des fichiers</label>
+        <input type="file" id="batch-file-input" accept=".srt" multiple hidden>
+      </div>
+      <div id="batch-file-list" class="batch-file-list"></div>
+      <div class="format-selector">
+        <span class="label">Format</span>
+        <div class="format-btns" id="batch-format-btns">
+          <button class="btn-format active" data-format="16:9">16:9</button>
+          <button class="btn-format" data-format="9:16">9:16</button>
+          <button class="btn-format" data-format="1:1">1:1</button>
+        </div>
+      </div>
+      <button id="btn-batch-calibrate" class="btn btn-primary btn-lg" disabled>
+        Calibrer tous et exporter ZIP
+      </button>
+      <div id="batch-results" class="batch-results"></div>
+    </div>
+
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════════
+       RIGHT SIDEBAR — preview + player
+       ════════════════════════════════════════════════════════════ -->
+  <aside class="sidebar-right">
+
+    <div class="preview-format-toggle">
+      <button class="btn-format-preview active" data-ratio="16:9">16:9</button>
+      <button class="btn-format-preview" data-ratio="9:16">9:16</button>
+      <button class="btn-format-preview" data-ratio="1:1">1:1</button>
+    </div>
+
+    <div class="preview-wrap">
+      <div class="preview-frame" id="preview-frame" data-ratio="16:9">
+        <img id="preview-bg" class="preview-bg hidden" alt="">
+        <div class="preview-safe-zone"></div>
+        <div class="preview-subtitle" id="preview-subtitle"></div>
+      </div>
+      <label class="btn btn-ghost btn-sm preview-bg-btn" for="preview-bg-input">+ Fond</label>
+      <input type="file" id="preview-bg-input" accept="image/*" hidden>
+    </div>
+
+    <div class="player">
+      <div class="player-timecode" id="player-tc">00:00:00,000</div>
+      <div class="player-progress-wrap" id="player-progress-wrap">
+        <div class="player-progress" id="player-progress">
+          <div class="player-cursor" id="player-cursor"></div>
+        </div>
+      </div>
+      <div class="player-controls">
+        <button id="btn-play" class="btn-play" title="Play/Pause" disabled>▶</button>
+        <select id="player-speed" class="player-speed">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.5">1.5×</option>
+          <option value="2">2×</option>
+        </select>
       </div>
     </div>
 
-    <!-- 2-column layout: list + preview -->
-    <div class="editor-body">
+  </aside>
 
-      <!-- Block list -->
-      <div class="block-list-container">
-        <div id="block-list" class="block-list"></div>
-      </div>
-
-      <!-- Preview + player -->
-      <aside class="preview-panel">
-
-        <!-- Format toggle in preview -->
-        <div class="preview-format-toggle">
-          <button class="btn-format-preview active" data-ratio="16:9">16:9</button>
-          <button class="btn-format-preview" data-ratio="9:16">9:16</button>
-          <button class="btn-format-preview" data-ratio="1:1">1:1</button>
-        </div>
-
-        <!-- Video preview frame -->
-        <div class="preview-wrap" id="preview-wrap">
-          <div class="preview-frame" id="preview-frame">
-            <div class="preview-safe-zone" id="preview-safe"></div>
-            <div class="preview-subtitle" id="preview-subtitle"></div>
-            <!-- Optional background image overlay -->
-            <img id="preview-bg" class="preview-bg hidden" alt="">
-          </div>
-          <label class="btn btn-ghost btn-sm preview-bg-btn" for="preview-bg-input">
-            + Fond
-          </label>
-          <input type="file" id="preview-bg-input" accept="image/*" hidden>
-        </div>
-
-        <!-- Mini player -->
-        <div class="player">
-          <div class="player-timecode" id="player-tc">00:00:00,000</div>
-          <div class="player-progress-wrap">
-            <div class="player-progress" id="player-progress">
-              <div class="player-cursor" id="player-cursor"></div>
-            </div>
-          </div>
-          <div class="player-controls">
-            <button id="btn-play" class="btn-play" title="Play/Pause">▶</button>
-            <select id="player-speed" class="player-speed" title="Vitesse">
-              <option value="0.5">0.5×</option>
-              <option value="1" selected>1×</option>
-              <option value="1.5">1.5×</option>
-              <option value="2">2×</option>
-            </select>
-          </div>
-        </div>
-
-      </aside>
-    </div>
-  </section>
-
-</main>
+</div><!-- /app-layout -->
 
 <!-- ── LOADING OVERLAY ─────────────────────────────────────────────────────── -->
 <div id="loading" class="loading hidden">
   <div class="spinner"></div>
-  <p>Calibrage en cours…</p>
+  <p id="loading-msg">Calibrage en cours…</p>
 </div>
 
 <script src="/static/app.js"></script>

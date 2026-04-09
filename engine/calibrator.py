@@ -575,14 +575,13 @@ def _split_block_to_lines(block: SRTBlock, rules: CalibrationRules) -> List[SRTB
 
         # Avoid creating a tiny orphan tail: if the remaining words after this
         # chunk are ≤ orphan_threshold AND the last word of the block ends a
-        # sentence, try to absorb them into the current chunk (accept +1 line).
+        # sentence, try to absorb them into the current chunk (strict max_lines).
         remaining_after = total_words - (start_idx + max_fit)
         if 0 < remaining_after <= rules.orphan_threshold:
             last_word = word_tokens[-1]
             if SENTENCE_END.search(last_word):
-                # Try including all remaining words (accept max_lines+1)
                 all_candidate = " ".join(word_tokens[start_idx:])
-                if len(_wrap_text(all_candidate, rules.max_cpl)) <= rules.max_lines + 1:
+                if len(_wrap_text(all_candidate, rules.max_cpl)) <= rules.max_lines:
                     max_fit = total_words - start_idx
 
         chunk = word_tokens[start_idx:start_idx + max_fit]

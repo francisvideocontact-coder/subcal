@@ -1,119 +1,120 @@
-/* SubCal — Interface web (Phase 2) */
+/* SubCal — Interface web v2 */
+'use strict';
 
 // ── State ──────────────────────────────────────────────────────────────────
-const state = {
+const S = {
   file: null,
   filename: '',
-  blocks: [],          // calibrated blocks (mutable)
-  originalBlocks: [],  // original blocks for compare
+  blocks: [],           // blocks currently displayed (original or calibrated)
+  originalBlocks: [],   // blocks before calibration (for compare)
+  isCalibrated: false,
   rules: {},
-  selectedIndex: 0,    // currently highlighted block
+  selectedIdx: 0,
   compareMode: false,
   filterModified: false,
   filterErrors: false,
-  format: '16:9',      // current format preset
+  format: '16:9',
   presets: {},
   // Player
-  playerRunning: false,
-  playerTime: 0,       // ms
+  playing: false,
+  playerTime: 0,
   playerSpeed: 1,
-  playerRAF: null,
-  playerLastTS: null,
   playerDuration: 0,
+  playerLastTS: null,
+  playerRAF: null,
   // Batch
   batchMode: false,
   batchFiles: [],
   batchFormat: '16:9',
 };
 
-// ── DOM refs ───────────────────────────────────────────────────────────────
+// ── DOM ────────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
-const importPanel   = $('import-panel');
-const batchPanel    = $('batch-panel');
-const editorPanel   = $('editor-panel');
-const loading       = $('loading');
 const dropZone      = $('drop-zone');
 const fileInput     = $('file-input');
+const dropLabel     = $('drop-label');
+const formatBtns    = $('format-btns');
+const fpsBadge      = $('fps-badge');
 const btnCalibrate  = $('btn-calibrate');
-const btnNew        = $('btn-new');
+const reportBadge   = $('report-badge');
+const sidebarActions = $('sidebar-actions');
 const btnExport     = $('btn-export');
 const btnCompare    = $('btn-compare');
-const btnPlay       = $('btn-play');
+const filterModified = $('filter-modified');
+const filterErrors   = $('filter-errors');
+const emptyState    = $('empty-state');
+const blockListWrap = $('block-list-wrap');
 const blockList     = $('block-list');
+const editorFilename = $('editor-filename');
+const blockCount    = $('block-count');
+const calibratedBadge = $('calibrated-badge');
+const batchPanel    = $('batch-panel');
 const previewFrame  = $('preview-frame');
 const previewSub    = $('preview-subtitle');
 const previewBg     = $('preview-bg');
 const playerTC      = $('player-tc');
-const playerCursor  = $('player-cursor');
 const playerProgress = $('player-progress');
-const playerSpeed   = $('player-speed');
-const filterModified = $('filter-modified');
-const filterErrors  = $('filter-errors');
-const fpsBadge      = $('fps-badge');
-const editorFilename = $('editor-filename');
-const editorReport  = $('editor-report');
+const playerCursor  = $('player-cursor');
+const playerSpeedSel = $('player-speed');
+const btnPlay       = $('btn-play');
+const loading       = $('loading');
+const loadingMsg    = $('loading-msg');
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
   const res = await fetch('/api/presets');
-  state.presets = await res.json();
+  S.presets = await res.json();
   applyPresetToUI('16:9');
-  setupEventListeners();
+  setupListeners();
 }
 
-// ── Event listeners ────────────────────────────────────────────────────────
-function setupEventListeners() {
+// ── Listeners ──────────────────────────────────────────────────────────────
+function setupListeners() {
   // Drop zone
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
   dropZone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
+    e.preventDefault(); dropZone.classList.remove('dragover');
     const f = e.dataTransfer.files[0];
-    if (f && f.name.endsWith('.srt')) setFile(f);
+    if (f && f.name.endsWith('.srt')) loadFile(f);
   });
   dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
 
-  // Format buttons
-  document.querySelectorAll('.btn-format').forEach(btn => {
+  // Format buttons (left sidebar)
+  formatBtns.querySelectorAll('.btn-format').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (btn.closest('#batch-format-btns')) return; // handled separately
-      document.querySelectorAll('#import-panel .btn-format').forEach(b => b.classList.remove('active'));
+      formatBtns.querySelectorAll('.btn-format').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      state.format = btn.dataset.format;
-      applyPresetToUI(state.format);
+      S.format = btn.dataset.format;
+      applyPresetToUI(S.format);
     });
   });
 
   // Config sliders
-  const sliders = [
+  [
     ['cfg-cpl', 'lbl-cpl', v => v],
     ['cfg-cps', 'lbl-cps', v => v],
     ['cfg-lines', 'lbl-lines', v => v],
     ['cfg-mindur', 'lbl-mindur', v => parseFloat(v).toFixed(1)],
     ['cfg-maxdur', 'lbl-maxdur', v => parseFloat(v).toFixed(1)],
     ['cfg-gap', 'lbl-gap', v => v],
-  ];
-  sliders.forEach(([id, lbl, fmt]) => {
-    const el = $(id);
-    el.addEventListener('input', () => { $(lbl).textContent = fmt(el.value); checkFPSBadge(); });
+  ].forEach(([id, lbl, fmt]) => {
+    $(id).addEventListener('input', () => { $(lbl).textContent = fmt($(id).value); checkFPSBadge(); });
   });
-
   $('cfg-fps-src').addEventListener('change', checkFPSBadge);
   $('cfg-fps-tgt').addEventListener('change', checkFPSBadge);
 
   // Calibrate
   btnCalibrate.addEventListener('click', doCalibrate);
 
-  // Editor actions
-  btnNew.addEventListener('click', showImport);
+  // Sidebar actions
   btnExport.addEventListener('click', doExport);
   btnCompare.addEventListener('click', toggleCompare);
-  filterModified.addEventListener('change', () => { state.filterModified = filterModified.checked; renderBlockList(); });
-  filterErrors.addEventListener('change', () => { state.filterErrors = filterErrors.checked; renderBlockList(); });
+  filterModified.addEventListener('change', () => { S.filterModified = filterModified.checked; renderBlockList(); });
+  filterErrors.addEventListener('change', () => { S.filterErrors = filterErrors.checked; renderBlockList(); });
 
-  // Preview format toggle
+  // Preview format
   document.querySelectorAll('.btn-format-preview').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.btn-format-preview').forEach(b => b.classList.remove('active'));
@@ -133,50 +134,39 @@ function setupEventListeners() {
 
   // Player
   btnPlay.addEventListener('click', togglePlay);
-  playerSpeed.addEventListener('change', () => { state.playerSpeed = parseFloat(playerSpeed.value); });
+  playerSpeedSel.addEventListener('change', () => { S.playerSpeed = parseFloat(playerSpeedSel.value); });
   $('player-progress-wrap').addEventListener('click', e => {
     const rect = playerProgress.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    state.playerTime = Math.round(ratio * state.playerDuration);
+    S.playerTime = Math.round(ratio * S.playerDuration);
     updatePlayerUI();
   });
 
-  // Batch mode toggle
-  $('btn-batch-toggle').addEventListener('click', toggleBatchMode);
+  // Batch
+  $('btn-batch-toggle').addEventListener('click', toggleBatch);
   const batchDrop = $('batch-drop-zone');
   const batchInput = $('batch-file-input');
   batchDrop.addEventListener('dragover', e => { e.preventDefault(); batchDrop.classList.add('dragover'); });
   batchDrop.addEventListener('dragleave', () => batchDrop.classList.remove('dragover'));
   batchDrop.addEventListener('drop', e => {
-    e.preventDefault();
-    batchDrop.classList.remove('dragover');
+    e.preventDefault(); batchDrop.classList.remove('dragover');
     addBatchFiles(Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.srt')));
   });
   batchDrop.addEventListener('click', () => batchInput.click());
   batchInput.addEventListener('change', () => addBatchFiles(Array.from(batchInput.files)));
-
   document.querySelectorAll('#batch-format-btns .btn-format').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#batch-format-btns .btn-format').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      state.batchFormat = btn.dataset.format;
+      S.batchFormat = btn.dataset.format;
     });
   });
-
   $('btn-batch-calibrate').addEventListener('click', doBatchCalibrate);
 }
 
-// ── File handling ──────────────────────────────────────────────────────────
-function setFile(f) {
-  state.file = f;
-  state.filename = f.name;
-  dropZone.classList.add('has-file');
-  dropZone.querySelector('p').textContent = f.name;
-  btnCalibrate.disabled = false;
-}
-
+// ── Preset & config ────────────────────────────────────────────────────────
 function applyPresetToUI(fmt) {
-  const p = state.presets[fmt];
+  const p = S.presets[fmt];
   if (!p) return;
   $('cfg-cpl').value = p.max_cpl; $('lbl-cpl').textContent = p.max_cpl;
   $('cfg-cps').value = p.max_cps; $('lbl-cps').textContent = p.max_cps;
@@ -187,56 +177,117 @@ function checkFPSBadge() {
   const src = $('cfg-fps-src').value;
   const tgt = $('cfg-fps-tgt').value;
   if (src && tgt && src !== tgt) {
-    fpsBadge.textContent = `Conversion framerate active : ${src} → ${tgt} fps (ratio ${(parseFloat(tgt)/parseFloat(src)).toFixed(5)})`;
+    fpsBadge.textContent = `FPS ${src} → ${tgt} (ratio ${(parseFloat(tgt)/parseFloat(src)).toFixed(5)})`;
     fpsBadge.classList.remove('hidden');
   } else {
     fpsBadge.classList.add('hidden');
   }
 }
 
-// ── Calibrate ──────────────────────────────────────────────────────────────
-async function doCalibrate() {
-  if (!state.file) return;
+function getFormRules() {
+  return {
+    format: S.format,
+    cpl: $('cfg-cpl').value,
+    cps: $('cfg-cps').value,
+    max_lines: $('cfg-lines').value,
+    min_duration: $('cfg-mindur').value,
+    max_duration: $('cfg-maxdur').value,
+    min_gap: (parseFloat($('cfg-gap').value) / 1000).toFixed(3),
+    source_fps: $('cfg-fps-src').value || null,
+    target_fps: $('cfg-fps-tgt').value || null,
+    semantic: $('cfg-semantic').checked,
+  };
+}
+
+// ── Load file (parse only) ─────────────────────────────────────────────────
+async function loadFile(f) {
+  S.file = f;
+  S.filename = f.name;
+  S.isCalibrated = false;
+
+  // Update drop zone
+  dropZone.classList.add('has-file');
+  dropLabel.innerHTML = `<strong>${f.name}</strong>`;
+
+  // Update button
+  btnCalibrate.disabled = false;
+  btnCalibrate.textContent = 'Calibrer';
+
+  loadingMsg.textContent = 'Chargement…';
   loading.classList.remove('hidden');
 
   const fd = new FormData();
-  fd.append('file', state.file);
-  fd.append('format', state.format);
-  fd.append('cpl',   $('cfg-cpl').value);
-  fd.append('cps',   $('cfg-cps').value);
-  fd.append('max_lines', $('cfg-lines').value);
-  fd.append('min_duration', $('cfg-mindur').value);
-  fd.append('max_duration', $('cfg-maxdur').value);
-  fd.append('min_gap', (parseFloat($('cfg-gap').value) / 1000).toFixed(3));
-  const fpsSrc = $('cfg-fps-src').value;
-  const fpsTgt = $('cfg-fps-tgt').value;
-  if (fpsSrc) fd.append('source_fps', fpsSrc);
-  if (fpsTgt) fd.append('target_fps', fpsTgt);
-  fd.append('semantic', $('cfg-semantic').checked ? 'true' : 'false');
+  fd.append('file', f);
 
   try {
-    const res = await fetch('/api/calibrate', { method: 'POST', body: fd });
-    if (!res.ok) {
-      const err = await res.json();
-      alert('Erreur : ' + (err.detail || res.statusText));
-      return;
-    }
+    const res = await fetch('/api/parse', { method: 'POST', body: fd });
     const data = await res.json();
-    state.blocks = data.blocks;
-    state.originalBlocks = data.original_blocks;
-    state.rules = data.rules;
+    S.blocks = data.blocks;
+    S.originalBlocks = [];
 
-    // Compute player duration from last block end
-    state.playerDuration = state.blocks.length
-      ? state.blocks[state.blocks.length - 1].end_ms
-      : 0;
-    state.playerTime = 0;
+    S.playerDuration = S.blocks.length ? S.blocks[S.blocks.length - 1].end_ms : 0;
+    S.playerTime = 0;
     stopPlayer();
 
     editorFilename.textContent = data.filename;
-    editorReport.textContent = data.report;
+    blockCount.textContent = `${S.blocks.length} blocs`;
+    calibratedBadge.classList.add('hidden');
+    reportBadge.classList.add('hidden');
+    sidebarActions.classList.add('hidden');
+    btnPlay.disabled = false;
 
-    showEditor();
+    showBlocks();
+    renderBlockList();
+    selectBlock(0);
+  } catch (e) {
+    alert('Erreur chargement : ' + e.message);
+  } finally {
+    loading.classList.add('hidden');
+  }
+}
+
+// ── Calibrate ──────────────────────────────────────────────────────────────
+async function doCalibrate() {
+  if (!S.file) return;
+
+  loadingMsg.textContent = 'Calibrage en cours…';
+  loading.classList.remove('hidden');
+
+  const rules = getFormRules();
+  const fd = new FormData();
+  fd.append('file', S.file);
+  fd.append('format', rules.format);
+  fd.append('cpl', rules.cpl);
+  fd.append('cps', rules.cps);
+  fd.append('max_lines', rules.max_lines);
+  fd.append('min_duration', rules.min_duration);
+  fd.append('max_duration', rules.max_duration);
+  fd.append('min_gap', rules.min_gap);
+  if (rules.source_fps) fd.append('source_fps', rules.source_fps);
+  if (rules.target_fps) fd.append('target_fps', rules.target_fps);
+  fd.append('semantic', rules.semantic ? 'true' : 'false');
+
+  try {
+    const res = await fetch('/api/calibrate', { method: 'POST', body: fd });
+    if (!res.ok) { const e = await res.json(); alert('Erreur : ' + (e.detail || res.statusText)); return; }
+    const data = await res.json();
+
+    S.blocks = data.blocks;
+    S.originalBlocks = data.original_blocks;
+    S.rules = data.rules;
+    S.isCalibrated = true;
+
+    S.playerDuration = S.blocks.length ? S.blocks[S.blocks.length - 1].end_ms : 0;
+    S.playerTime = 0;
+    stopPlayer();
+
+    blockCount.textContent = `${S.blocks.length} blocs`;
+    calibratedBadge.classList.remove('hidden');
+    reportBadge.textContent = data.report;
+    reportBadge.classList.remove('hidden');
+    sidebarActions.classList.remove('hidden');
+    btnCalibrate.textContent = 'Recalibrer';
+
     renderBlockList();
     selectBlock(0);
   } catch (e) {
@@ -247,281 +298,327 @@ async function doCalibrate() {
 }
 
 // ── Panel visibility ───────────────────────────────────────────────────────
-function showImport() {
-  stopPlayer();
-  editorPanel.classList.add('hidden');
-  if (state.batchMode) {
-    batchPanel.classList.remove('hidden');
-  } else {
-    importPanel.classList.remove('hidden');
-  }
-}
-
-function showEditor() {
-  importPanel.classList.add('hidden');
+function showBlocks() {
+  emptyState.classList.add('hidden');
   batchPanel.classList.add('hidden');
-  editorPanel.classList.remove('hidden');
+  blockListWrap.classList.remove('hidden');
 }
 
-function toggleBatchMode() {
-  state.batchMode = !state.batchMode;
-  if (state.batchMode) {
-    importPanel.classList.add('hidden');
+function toggleBatch() {
+  S.batchMode = !S.batchMode;
+  $('btn-batch-toggle').textContent = S.batchMode ? 'Fichier unique' : 'Batch';
+  if (S.batchMode) {
+    emptyState.classList.add('hidden');
+    blockListWrap.classList.add('hidden');
     batchPanel.classList.remove('hidden');
-    $('btn-batch-toggle').textContent = 'Fichier unique';
   } else {
     batchPanel.classList.add('hidden');
-    importPanel.classList.remove('hidden');
-    $('btn-batch-toggle').textContent = 'Batch';
+    if (S.blocks.length) {
+      blockListWrap.classList.remove('hidden');
+    } else {
+      emptyState.classList.remove('hidden');
+    }
   }
 }
 
-// ── Block list rendering ───────────────────────────────────────────────────
+// ── Block list ─────────────────────────────────────────────────────────────
 function renderBlockList() {
   blockList.innerHTML = '';
-  const blocks = state.blocks.filter(b => {
-    if (state.filterModified && !b.modified) return false;
-    if (state.filterErrors && !blockHasError(b)) return false;
+  const blocks = S.blocks.filter(b => {
+    if (S.filterModified && !b.modified) return false;
+    if (S.filterErrors && !blockHasError(b)) return false;
     return true;
   });
 
-  blocks.forEach((block, i) => {
-    const item = document.createElement('div');
-    item.className = 'block-item' +
-      (block.modified ? ' modified' : '') +
-      (blockHasError(block) ? ' has-error' : '') +
-      (state.compareMode ? ' compare-mode' : '') +
-      (block.index - 1 === state.selectedIndex ? ' active' : '');
-    item.dataset.idx = block.index - 1;
-
-    // Original text for compare
-    const orig = state.originalBlocks.find(o => o.index === block.index);
+  blocks.forEach(block => {
+    const realIdx = block.index - 1;
+    const orig = S.originalBlocks.find(o => o.index === block.index);
     const origText = orig ? orig.lines.join('\n') : '';
+
+    const item = document.createElement('div');
+    item.className = 'block-item'
+      + (block.modified ? ' modified' : '')
+      + (blockHasError(block) ? ' has-error' : '')
+      + (!S.isCalibrated ? ' original-only' : '')
+      + (realIdx === S.selectedIdx ? ' active' : '');
+    item.dataset.idx = realIdx;
 
     item.innerHTML = `
       <div class="block-index">${block.index}</div>
       <div class="block-content">
-        <div class="block-timecodes">${block.start_tc} → ${block.end_tc} (${block.duration_s.toFixed(2)}s)</div>
-        <div class="block-original">${escHtml(origText)}</div>
-        <div class="block-text-wrap" contenteditable="true" spellcheck="false" data-idx="${block.index - 1}">${escHtml(block.lines.join('\n'))}</div>
+        <div class="block-timecodes">${block.start_tc} → ${block.end_tc} · ${block.duration_s.toFixed(2)}s</div>
+        ${S.compareMode && orig ? `<div class="block-original">${escHtml(origText)}</div>` : ''}
+        <div class="block-text-wrap" contenteditable="${S.isCalibrated}" spellcheck="false" data-idx="${realIdx}">${escHtml(block.lines.join('\n'))}</div>
         ${block.modified ? '<span class="badge-modified">modifié</span>' : ''}
+        ${S.isCalibrated ? `<div class="block-actions">
+          <button class="btn-block-action" data-action="split" data-idx="${realIdx}" title="Scinder ce bloc en deux">⟂ Scinder</button>
+          ${realIdx > 0 ? `<button class="btn-block-action" data-action="merge" data-idx="${realIdx}" title="Fusionner avec le bloc précédent">↑ Fusionner</button>` : ''}
+        </div>` : ''}
       </div>
       <div class="block-metrics">
-        ${renderMetrics(block)}
+        ${S.isCalibrated ? renderMetrics(block) : ''}
       </div>`;
 
     // Click to select
     item.addEventListener('click', e => {
+      const action = e.target.dataset.action;
+      if (action === 'split') { splitBlock(parseInt(e.target.dataset.idx)); return; }
+      if (action === 'merge') { mergeBlock(parseInt(e.target.dataset.idx)); return; }
       if (e.target.classList.contains('block-text-wrap')) return;
-      selectBlock(parseInt(item.dataset.idx));
+      selectBlock(realIdx);
     });
 
-    // Inline editing
+    // Inline edit
     const editor = item.querySelector('.block-text-wrap');
-    editor.addEventListener('input', () => onBlockEdit(parseInt(editor.dataset.idx), editor));
-    editor.addEventListener('focus', () => selectBlock(parseInt(editor.dataset.idx)));
+    if (S.isCalibrated) {
+      editor.addEventListener('input', () => onBlockEdit(parseInt(editor.dataset.idx), editor));
+      editor.addEventListener('focus', () => selectBlock(parseInt(editor.dataset.idx)));
+    }
 
     blockList.appendChild(item);
   });
 }
 
 function renderMetrics(block) {
-  const r = state.rules;
-  const cpsClass = !r.max_cps ? 'ok' : block.cps > r.max_cps ? 'error' : block.cps > r.max_cps * 0.85 ? 'warn' : 'ok';
+  const r = S.rules;
+  const cpsClass = metricClass(block.cps, r.max_cps);
   let html = `<span class="metric ${cpsClass}">CPS ${block.cps}</span>`;
   block.cpl_per_line.forEach((cpl, i) => {
-    const cls = !r.max_cpl ? 'ok' : cpl > r.max_cpl ? 'error' : cpl > r.max_cpl * 0.85 ? 'warn' : 'ok';
-    html += `<span class="metric ${cls}">L${i+1} ${cpl}c</span>`;
+    html += `<span class="metric ${metricClass(cpl, r.max_cpl)}">L${i+1} ${cpl}c</span>`;
   });
   return html;
 }
 
+function metricClass(val, max) {
+  if (!max) return 'ok';
+  if (val > max) return 'error';
+  if (val > max * 0.85) return 'warn';
+  return 'ok';
+}
+
 function blockHasError(block) {
-  const r = state.rules;
-  if (r.max_cps && block.cps > r.max_cps) return true;
-  if (r.max_cpl && block.cpl_max > r.max_cpl) return true;
-  return false;
+  const r = S.rules;
+  return (r.max_cps && block.cps > r.max_cps) || (r.max_cpl && block.cpl_max > r.max_cpl);
 }
 
-function escHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// ── Block selection & preview ──────────────────────────────────────────────
+// ── Block selection ────────────────────────────────────────────────────────
 function selectBlock(idx) {
-  state.selectedIndex = idx;
-  // Update active class
-  document.querySelectorAll('.block-item').forEach(item => {
-    item.classList.toggle('active', parseInt(item.dataset.idx) === idx);
+  S.selectedIdx = idx;
+  document.querySelectorAll('.block-item').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.idx) === idx);
   });
   renderPreview();
-  updatePlayerTimeToBlock(idx);
-}
-
-function renderPreview() {
-  const block = state.blocks[state.selectedIndex];
-  if (!block) { previewSub.textContent = ''; return; }
-  previewSub.textContent = block.lines.join('\n');
-}
-
-function updatePlayerTimeToBlock(idx) {
-  const block = state.blocks[idx];
-  if (!block) return;
-  state.playerTime = block.start_ms;
-  updatePlayerUI();
+  if (!S.playing) {
+    const b = S.blocks[idx];
+    if (b) { S.playerTime = b.start_ms; updatePlayerUI(); }
+  }
 }
 
 // ── Inline editing ─────────────────────────────────────────────────────────
 function onBlockEdit(idx, el) {
-  const block = state.blocks[idx];
+  const block = S.blocks[idx];
   if (!block) return;
-  const text = el.innerText;
-  block.lines = text.split('\n').filter(l => l.trim() !== '');
+  block.lines = el.innerText.split('\n').filter(l => l.trim() !== '');
   block.text = block.lines.join(' ');
+  recomputeMetrics(block);
+  const metricsEl = el.closest('.block-item').querySelector('.block-metrics');
+  if (metricsEl) metricsEl.innerHTML = renderMetrics(block);
+  renderPreview();
+}
 
-  // Recompute metrics
+function recomputeMetrics(block) {
   const dur_s = block.duration_s;
   const total_chars = block.lines.reduce((s, l) => s + l.length, 0);
   block.cps = dur_s > 0 ? Math.round(total_chars / dur_s * 10) / 10 : 0;
   block.cpl_per_line = block.lines.map(l => l.length);
   block.cpl_max = Math.max(...block.cpl_per_line, 0);
-
-  // Update metrics in DOM without full re-render
-  const metricsEl = el.closest('.block-item').querySelector('.block-metrics');
-  if (metricsEl) metricsEl.innerHTML = renderMetrics(block);
-
-  renderPreview();
 }
 
-// ── Compare toggle ─────────────────────────────────────────────────────────
-function toggleCompare() {
-  state.compareMode = !state.compareMode;
-  btnCompare.textContent = state.compareMode ? 'Masquer original' : 'Avant / Après';
+// ── Split block ────────────────────────────────────────────────────────────
+function splitBlock(idx) {
+  const block = S.blocks[idx];
+  if (!block) return;
+
+  const text = block.lines.join(' ');
+  const words = text.split(' ');
+  if (words.length < 2) return;
+
+  const mid = Math.floor(words.length / 2);
+  const textA = words.slice(0, mid).join(' ');
+  const textB = words.slice(mid).join(' ');
+
+  const midMs = block.start_ms + Math.round((block.end_ms - block.start_ms) / 2);
+  const gapMs = Math.round((S.rules.min_gap || 0.12) * 1000);
+
+  const blockA = {
+    ...block,
+    lines: [textA],
+    end_ms: midMs - gapMs,
+    text: textA,
+    start_tc: block.start_tc,
+    end_tc: msToTC(midMs - gapMs),
+    duration_s: (midMs - gapMs - block.start_ms) / 1000,
+    modified: true,
+  };
+  const blockB = {
+    index: block.index + 0.5, // temp, will renumber
+    lines: [textB],
+    start_ms: midMs,
+    end_ms: block.end_ms,
+    text: textB,
+    start_tc: msToTC(midMs),
+    end_tc: block.end_tc,
+    duration_s: (block.end_ms - midMs) / 1000,
+    cps: 0, cpl_per_line: [], cpl_max: 0,
+    modified: true,
+  };
+
+  recomputeMetrics(blockA);
+  recomputeMetrics(blockB);
+
+  S.blocks.splice(idx, 1, blockA, blockB);
+
+  // Renumber all blocks
+  S.blocks.forEach((b, i) => { b.index = i + 1; });
+
   renderBlockList();
+  selectBlock(idx);
+}
+
+// ── Merge block with previous ──────────────────────────────────────────────
+function mergeBlock(idx) {
+  if (idx === 0) return;
+  const prev = S.blocks[idx - 1];
+  const curr = S.blocks[idx];
+
+  const mergedLines = [...prev.lines, ...curr.lines];
+  const merged = {
+    ...prev,
+    lines: mergedLines,
+    end_ms: curr.end_ms,
+    end_tc: curr.end_tc,
+    duration_s: (curr.end_ms - prev.start_ms) / 1000,
+    text: mergedLines.join(' '),
+    modified: true,
+  };
+  recomputeMetrics(merged);
+
+  S.blocks.splice(idx - 1, 2, merged);
+  S.blocks.forEach((b, i) => { b.index = i + 1; });
+
+  renderBlockList();
+  selectBlock(Math.max(0, idx - 1));
+}
+
+// ── Compare ────────────────────────────────────────────────────────────────
+function toggleCompare() {
+  S.compareMode = !S.compareMode;
+  btnCompare.textContent = S.compareMode ? 'Masquer original' : 'Avant / Après';
+  renderBlockList();
+}
+
+// ── Preview ────────────────────────────────────────────────────────────────
+function renderPreview() {
+  const block = S.blocks[S.selectedIdx];
+  previewSub.textContent = block ? block.lines.join('\n') : '';
 }
 
 // ── Export ─────────────────────────────────────────────────────────────────
 async function doExport() {
   const payload = {
-    filename: state.filename,
-    blocks: state.blocks.map(b => ({
-      index: b.index,
-      start_ms: b.start_ms,
-      end_ms: b.end_ms,
-      lines: b.lines,
-    })),
+    filename: S.filename,
+    blocks: S.blocks.map(b => ({ index: b.index, start_ms: b.start_ms, end_ms: b.end_ms, lines: b.lines })),
   };
-
   const res = await fetch('/api/export', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-
   if (!res.ok) { alert('Erreur export'); return; }
-
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   const cd = res.headers.get('Content-Disposition') || '';
-  const match = cd.match(/filename="([^"]+)"/);
-  a.download = match ? match[1] : 'calibrated.srt';
+  const m = cd.match(/filename="([^"]+)"/);
+  a.download = m ? m[1] : 'calibrated.srt';
   a.click();
   URL.revokeObjectURL(url);
 }
 
 // ── Player ─────────────────────────────────────────────────────────────────
 function togglePlay() {
-  if (state.playerRunning) {
-    stopPlayer();
-  } else {
-    startPlayer();
-  }
+  S.playing ? stopPlayer() : startPlayer();
 }
 
 function startPlayer() {
-  state.playerRunning = true;
-  state.playerLastTS = null;
+  S.playing = true;
+  S.playerLastTS = null;
   btnPlay.textContent = '⏸';
-  requestAnimationFrame(playerTick);
+  S.playerRAF = requestAnimationFrame(playerTick);
 }
 
 function stopPlayer() {
-  state.playerRunning = false;
+  S.playing = false;
   btnPlay.textContent = '▶';
-  if (state.playerRAF) cancelAnimationFrame(state.playerRAF);
+  if (S.playerRAF) cancelAnimationFrame(S.playerRAF);
 }
 
 function playerTick(ts) {
-  if (!state.playerRunning) return;
-  if (state.playerLastTS !== null) {
-    const elapsed = (ts - state.playerLastTS) * state.playerSpeed;
-    state.playerTime += elapsed;
-    if (state.playerTime >= state.playerDuration) {
-      state.playerTime = state.playerDuration;
-      stopPlayer();
-    }
+  if (!S.playing) return;
+  if (S.playerLastTS !== null) {
+    S.playerTime += (ts - S.playerLastTS) * S.playerSpeed;
+    if (S.playerTime >= S.playerDuration) { S.playerTime = S.playerDuration; stopPlayer(); }
   }
-  state.playerLastTS = ts;
+  S.playerLastTS = ts;
   updatePlayerUI();
-  state.playerRAF = requestAnimationFrame(playerTick);
+  S.playerRAF = requestAnimationFrame(playerTick);
 }
 
 function updatePlayerUI() {
-  const t = state.playerTime;
-  const dur = state.playerDuration || 1;
-
-  // Timecode display
+  const t = S.playerTime;
+  const dur = S.playerDuration || 1;
   playerTC.textContent = msToTC(t);
+  playerCursor.style.left = Math.min(100, (t / dur) * 100) + '%';
 
-  // Progress cursor
-  const pct = Math.min(100, (t / dur) * 100);
-  playerCursor.style.left = pct + '%';
+  const active = S.blocks.findIndex(b => t >= b.start_ms && t < b.end_ms);
+  previewSub.textContent = active >= 0 ? S.blocks[active].lines.join('\n') : '';
 
-  // Find active block
-  const active = state.blocks.findIndex(b => t >= b.start_ms && t < b.end_ms);
-  if (active >= 0) {
-    previewSub.textContent = state.blocks[active].lines.join('\n');
-    // Scroll to active block if changed
-    if (active !== state.selectedIndex) {
-      state.selectedIndex = active;
-      const item = blockList.querySelector(`[data-idx="${active}"]`);
-      if (item) item.scrollIntoView({ block: 'nearest' });
-      document.querySelectorAll('.block-item').forEach(el => {
-        el.classList.toggle('active', parseInt(el.dataset.idx) === active);
-      });
-    }
-  } else {
-    previewSub.textContent = '';
+  if (active >= 0 && active !== S.selectedIdx) {
+    S.selectedIdx = active;
+    document.querySelectorAll('.block-item').forEach(el => {
+      const same = parseInt(el.dataset.idx) === active;
+      el.classList.toggle('active', same);
+      if (same) el.scrollIntoView({ block: 'nearest' });
+    });
   }
 }
 
 function msToTC(ms) {
-  const h   = Math.floor(ms / 3_600_000);
-  const m   = Math.floor((ms % 3_600_000) / 60_000);
-  const s   = Math.floor((ms % 60_000) / 1_000);
-  const mil = Math.floor(ms % 1_000);
-  return `${pad2(h)}:${pad2(m)}:${pad2(s)},${pad3(mil)}`;
+  ms = Math.max(0, Math.round(ms));
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const mil = ms % 1000;
+  return `${p2(h)}:${p2(m)}:${p2(s)},${p3(mil)}`;
 }
-function pad2(n) { return String(n).padStart(2, '0'); }
-function pad3(n) { return String(n).padStart(3, '0'); }
+function p2(n) { return String(n).padStart(2,'0'); }
+function p3(n) { return String(n).padStart(3,'0'); }
 
 // ── Batch ──────────────────────────────────────────────────────────────────
 function addBatchFiles(files) {
-  state.batchFiles = [...state.batchFiles, ...files];
+  S.batchFiles = [...S.batchFiles, ...files];
   renderBatchFileList();
-  $('btn-batch-calibrate').disabled = state.batchFiles.length === 0;
+  $('btn-batch-calibrate').disabled = S.batchFiles.length === 0;
 }
 
 function renderBatchFileList() {
   const list = $('batch-file-list');
-  if (state.batchFiles.length === 0) {
-    list.classList.add('hidden');
-    return;
-  }
-  list.classList.remove('hidden');
-  list.innerHTML = state.batchFiles.map((f, i) =>
+  list.innerHTML = S.batchFiles.map((f, i) =>
     `<div class="batch-file-item">
       <span>${f.name}</span>
       <button class="btn btn-ghost btn-sm" onclick="removeBatchFile(${i})">✕</button>
@@ -529,56 +626,50 @@ function renderBatchFileList() {
   ).join('');
 }
 
-window.removeBatchFile = function(i) {
-  state.batchFiles.splice(i, 1);
+window.removeBatchFile = i => {
+  S.batchFiles.splice(i, 1);
   renderBatchFileList();
-  $('btn-batch-calibrate').disabled = state.batchFiles.length === 0;
+  $('btn-batch-calibrate').disabled = S.batchFiles.length === 0;
 };
 
 async function doBatchCalibrate() {
-  if (state.batchFiles.length === 0) return;
+  if (!S.batchFiles.length) return;
+  loadingMsg.textContent = `Calibrage de ${S.batchFiles.length} fichier(s)…`;
   loading.classList.remove('hidden');
 
+  const rules = getFormRules();
   const fd = new FormData();
-  state.batchFiles.forEach(f => fd.append('files', f));
-  fd.append('format', state.batchFormat);
-  fd.append('cpl',   $('cfg-cpl').value);
-  fd.append('cps',   $('cfg-cps').value);
-  fd.append('max_lines', $('cfg-lines').value);
-  fd.append('min_duration', $('cfg-mindur').value);
-  fd.append('max_duration', $('cfg-maxdur').value);
-  fd.append('min_gap', (parseFloat($('cfg-gap').value) / 1000).toFixed(3));
-  fd.append('semantic', $('cfg-semantic') && $('cfg-semantic').checked ? 'true' : 'false');
+  S.batchFiles.forEach(f => fd.append('files', f));
+  fd.append('format', S.batchFormat);
+  fd.append('cpl', rules.cpl);
+  fd.append('cps', rules.cps);
+  fd.append('max_lines', rules.max_lines);
+  fd.append('min_duration', rules.min_duration);
+  fd.append('max_duration', rules.max_duration);
+  fd.append('min_gap', rules.min_gap);
+  if (rules.source_fps) fd.append('source_fps', rules.source_fps);
+  if (rules.target_fps) fd.append('target_fps', rules.target_fps);
+  fd.append('semantic', rules.semantic ? 'true' : 'false');
 
   try {
     const res = await fetch('/api/batch', { method: 'POST', body: fd });
     if (!res.ok) { alert('Erreur batch'); return; }
-
-    const summaryHeader = res.headers.get('X-Subcal-Summary');
-    const summary = summaryHeader ? JSON.parse(summaryHeader) : [];
-
-    // Download ZIP
+    const summaryRaw = res.headers.get('X-Subcal-Summary');
+    const summary = summaryRaw ? JSON.parse(summaryRaw) : [];
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'subcal_batch.zip';
-    a.click();
+    a.href = url; a.download = 'subcal_batch.zip'; a.click();
     URL.revokeObjectURL(url);
-
-    // Show summary
     const resultsEl = $('batch-results');
-    resultsEl.classList.remove('hidden');
     resultsEl.innerHTML = summary.map(r =>
       `<div class="batch-result-item ${r.errors.length ? 'has-errors' : ''}">
         <strong>${r.filename}</strong> — ${r.report}
         ${r.errors.length ? `<br><span style="color:var(--error)">${r.errors.join(', ')}</span>` : ''}
       </div>`
     ).join('');
-  } catch (e) {
-    alert('Erreur réseau : ' + e.message);
-  } finally {
-    loading.classList.add('hidden');
-  }
+  } catch(e) { alert('Erreur : ' + e.message); }
+  finally { loading.classList.add('hidden'); }
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────

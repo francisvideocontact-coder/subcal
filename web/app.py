@@ -106,6 +106,28 @@ async def index():
     return HTMLResponse(content=html)
 
 
+@app.post("/api/parse")
+async def parse_only(file: UploadFile = File(...)):
+    """Parse an SRT file and return its original blocks without calibration."""
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, "Fichier vide")
+
+    with tempfile.NamedTemporaryFile(suffix=".srt", delete=False) as tf:
+        tf.write(content)
+        tmp_in = tf.name
+
+    try:
+        blocks = parse_srt(tmp_in)
+    finally:
+        os.unlink(tmp_in)
+
+    return {
+        "filename": file.filename,
+        "blocks": [_block_to_dict(b) for b in blocks],
+    }
+
+
 @app.post("/api/calibrate")
 async def calibrate(
     file: UploadFile = File(...),
