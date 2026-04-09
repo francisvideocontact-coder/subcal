@@ -473,18 +473,41 @@ input[type=checkbox] { accent-color: var(--accent); cursor: pointer; flex-shrink
   left: 5%; right: 5%;
   text-align: center;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--preview-font-size, 11px);
   font-weight: 600;
   color: #fff;
   text-shadow: 0 1px 3px #000, 0 0 6px #000;
-  white-space: pre-wrap;
+  /* pre = affiche exactement les lignes du calibrateur, sans re-wrap CSS */
+  white-space: pre;
   line-height: 1.4;
+  overflow: visible;
 }
 .preview-frame[data-ratio="9:16"] .preview-subtitle {
   bottom: 38%;
-  font-size: 10px;
 }
 .preview-bg-btn { align-self: flex-end; }
+
+/* Font size control */
+.preview-font-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.font-size-btns { display: flex; gap: 4px; }
+.btn-font-size {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg3);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all .12s;
+}
+.btn-font-size:hover { border-color: var(--accent); color: var(--text); }
+.btn-font-size.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 
 /* Player */
 .player { width: 100%; display: flex; flex-direction: column; gap: 6px; }

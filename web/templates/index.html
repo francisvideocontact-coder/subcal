@@ -12,6 +12,8 @@
 <header>
   <div class="logo">SubCal<span class="logo-tag">v2</span></div>
   <div class="header-actions">
+    <button id="btn-undo" class="btn btn-ghost btn-sm" title="Annuler (⌘Z)" disabled>↩ Annuler</button>
+    <button id="btn-redo" class="btn btn-ghost btn-sm" title="Rétablir (⌘⇧Z)" disabled>↪ Rétablir</button>
     <button id="btn-batch-toggle" class="btn btn-ghost">Batch</button>
   </div>
 </header>
@@ -181,6 +183,16 @@
       <button class="btn-format-preview active" data-ratio="16:9">16:9</button>
       <button class="btn-format-preview" data-ratio="9:16">9:16</button>
       <button class="btn-format-preview" data-ratio="1:1">1:1</button>
+    </div>
+
+    <div class="preview-font-row">
+      <span class="section-label">Police</span>
+      <div class="font-size-btns">
+        <button class="btn-font-size" data-size="9px">S</button>
+        <button class="btn-font-size active" data-size="11px">M</button>
+        <button class="btn-font-size" data-size="14px">L</button>
+        <button class="btn-font-size" data-size="17px">XL</button>
+      </div>
     </div>
 
     <div class="preview-wrap">

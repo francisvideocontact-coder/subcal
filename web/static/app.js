@@ -15,6 +15,9 @@ const S = {
   filterErrors: false,
   format: '16:9',
   presets: {},
+  // History (undo/redo)
+  history: [],          // array of {blocks, selectedIdx} snapshots
+  historyIdx: -1,       // current position in history
   // Player
   playing: false,
   playerTime: 0,
@@ -27,6 +30,50 @@ const S = {
   batchFiles: [],
   batchFormat: '16:9',
 };
+
+// ── History (undo / redo) ──────────────────────────────────────────────────
+function pushHistory() {
+  // Truncate redo stack
+  S.history = S.history.slice(0, S.historyIdx + 1);
+  S.history.push({
+    blocks: JSON.parse(JSON.stringify(S.blocks)),
+    selectedIdx: S.selectedIdx,
+  });
+  // Keep at most 50 snapshots
+  if (S.history.length > 50) S.history.shift();
+  S.historyIdx = S.history.length - 1;
+  updateUndoRedoBtns();
+}
+
+function undo() {
+  if (S.historyIdx <= 0) return;
+  S.historyIdx--;
+  restoreSnapshot(S.history[S.historyIdx]);
+}
+
+function redo() {
+  if (S.historyIdx >= S.history.length - 1) return;
+  S.historyIdx++;
+  restoreSnapshot(S.history[S.historyIdx]);
+}
+
+function restoreSnapshot(snap) {
+  S.blocks = JSON.parse(JSON.stringify(snap.blocks));
+  S.selectedIdx = snap.selectedIdx;
+  recomputePlayerDuration();
+  renderBlockList();
+  selectBlock(S.selectedIdx);
+  updateUndoRedoBtns();
+}
+
+function updateUndoRedoBtns() {
+  $('btn-undo').disabled = S.historyIdx <= 0;
+  $('btn-redo').disabled = S.historyIdx >= S.history.length - 1;
+}
+
+function recomputePlayerDuration() {
+  S.playerDuration = S.blocks.length ? S.blocks[S.blocks.length - 1].end_ms : 0;
+}
 
 // ── DOM ────────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -130,6 +177,27 @@ function setupListeners() {
     if (!f) return;
     previewBg.src = URL.createObjectURL(f);
     previewBg.classList.remove('hidden');
+  });
+
+  // Undo / Redo — boutons
+  $('btn-undo').addEventListener('click', undo);
+  $('btn-redo').addEventListener('click', redo);
+
+  // Undo / Redo — clavier ⌘Z / ⌘⇧Z
+  document.addEventListener('keydown', e => {
+    const meta = e.metaKey || e.ctrlKey;
+    if (!meta) return;
+    if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    if ((e.key === 'z' && e.shiftKey) || e.key === 'y') { e.preventDefault(); redo(); }
+  });
+
+  // Taille de police preview
+  document.querySelectorAll('.btn-font-size').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-font-size').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      previewFrame.style.setProperty('--preview-font-size', btn.dataset.size);
+    });
   });
 
   // Player
@@ -288,6 +356,7 @@ async function doCalibrate() {
     sidebarActions.classList.remove('hidden');
     btnCalibrate.textContent = 'Recalibrer';
 
+    pushHistory();
     renderBlockList();
     selectBlock(0);
   } catch (e) {
@@ -419,6 +488,7 @@ function selectBlock(idx) {
 }
 
 // ── Inline editing ─────────────────────────────────────────────────────────
+let _editTimer = null;
 function onBlockEdit(idx, el) {
   const block = S.blocks[idx];
   if (!block) return;
@@ -428,6 +498,9 @@ function onBlockEdit(idx, el) {
   const metricsEl = el.closest('.block-item').querySelector('.block-metrics');
   if (metricsEl) metricsEl.innerHTML = renderMetrics(block);
   renderPreview();
+  // Debounced history save (500ms after last keystroke)
+  clearTimeout(_editTimer);
+  _editTimer = setTimeout(pushHistory, 500);
 }
 
 function recomputeMetrics(block) {
@@ -442,6 +515,8 @@ function recomputeMetrics(block) {
 function splitBlock(idx) {
   const block = S.blocks[idx];
   if (!block) return;
+
+  pushHistory();
 
   const text = block.lines.join(' ');
   const words = text.split(' ');
@@ -492,6 +567,7 @@ function splitBlock(idx) {
 // ── Merge block with previous ──────────────────────────────────────────────
 function mergeBlock(idx) {
   if (idx === 0) return;
+  pushHistory();
   const prev = S.blocks[idx - 1];
   const curr = S.blocks[idx];
 
