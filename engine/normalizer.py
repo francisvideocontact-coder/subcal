@@ -27,11 +27,13 @@ def _build_number_dict() -> Dict[str, int]:
 
     d: Dict[str, int] = {}
 
-    # 0–19
+    # 0, 2–19 — 'un'/'une' délibérément exclus : ce sont aussi des articles
+    # indéfinis ("un film", "une journée") qui produiraient des faux positifs massifs.
     for i, w in enumerate(units):
+        if i == 1:   # skip 'un'
+            continue
         d[w] = i
     d['zero'] = 0   # variant sans accent
-    d['une'] = 1
 
     # 20–69 (dizaines simples + composés)
     simple_tens = [
@@ -64,15 +66,14 @@ def _build_number_dict() -> Dict[str, int]:
     for i in range(10, 20):
         d[f'quatre-vingt-{units[i]}'] = 80 + i
 
-    # Centaines rondes
+    # Centaines rondes — 'cent' seul exclu pour éviter "pour cent" → "pour 100"
     hundreds_prefixes = [
-        '', 'cent', 'deux cents', 'trois cents', 'quatre cents',
+        '', '', 'deux cents', 'trois cents', 'quatre cents',
         'cinq cents', 'six cents', 'sept cents', 'huit cents', 'neuf cents',
     ]
     for i, prefix in enumerate(hundreds_prefixes):
         if prefix:
             d[prefix] = i * 100
-    d['cent'] = 100   # sans "s" = même valeur
 
     # Milliers courants
     d['mille'] = 1_000
@@ -116,9 +117,14 @@ def normalize_blocks(blocks: list) -> list:
     """
     Applique normalize_numbers() sur chaque ligne de chaque bloc.
     Retourne une copie profonde avec les métriques recalculées.
+    Lève ValueError si un bloc est mal formé.
     """
+    if not isinstance(blocks, list):
+        raise ValueError("blocks doit être une liste")
     result = copy.deepcopy(blocks)
     for block in result:
+        if not isinstance(block, dict) or 'lines' not in block:
+            raise ValueError(f"Bloc mal formé (clé 'lines' manquante) : {block!r:.100}")
         new_lines = [normalize_numbers(line) for line in block['lines']]
         if new_lines != block['lines']:
             block['lines'] = new_lines

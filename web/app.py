@@ -306,7 +306,10 @@ async def normalize_numbers_endpoint(request: dict):
     blocks = request.get("blocks", [])
     if not blocks:
         raise HTTPException(400, "Aucun bloc fourni")
-    return {"blocks": normalize_blocks(blocks)}
+    try:
+        return {"blocks": normalize_blocks(blocks)}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/api/presets")

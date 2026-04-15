@@ -804,7 +804,7 @@ function doReplaceAll() {
 
   S.blocks.forEach(b => {
     const newLines = b.lines.map(l => l.replace(re, r));
-    if (newLines.join('') !== b.lines.join('')) {
+    if (newLines.join('\n') !== b.lines.join('\n')) {
       b.lines = newLines;
       b.text = newLines.join(' ');
       b.modified = true;
