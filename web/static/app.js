@@ -183,22 +183,39 @@ function setupListeners() {
   $('btn-undo').addEventListener('click', undo);
   $('btn-redo').addEventListener('click', redo);
 
-  // Undo / Redo — clavier ⌘Z / ⌘⇧Z
+  // Undo / Redo — clavier ⌘Z / ⌘⇧Z ; ⌘F pour la recherche
   document.addEventListener('keydown', e => {
     const meta = e.metaKey || e.ctrlKey;
     if (!meta) return;
     if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     if ((e.key === 'z' && e.shiftKey) || e.key === 'y') { e.preventDefault(); redo(); }
+    if (e.key === 'f') { e.preventDefault(); openSearchBar(); }
   });
 
-  // Taille de police preview
-  document.querySelectorAll('.btn-font-size').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.btn-font-size').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      previewFrame.style.setProperty('--preview-font-size', btn.dataset.size);
-    });
+  // Taille de police preview (slider)
+  const fontSlider = $('cfg-font-size');
+  fontSlider.addEventListener('input', () => {
+    const px = fontSlider.value + 'px';
+    $('lbl-font-size').textContent = px;
+    previewFrame.style.setProperty('--preview-font-size', px);
   });
+
+  // Largeur du panneau preview (slider)
+  $('cfg-preview-width').addEventListener('input', () => {
+    const px = $('cfg-preview-width').value + 'px';
+    $('lbl-preview-width').textContent = px;
+    document.documentElement.style.setProperty('--right-w', px);
+  });
+
+  // Recherche / Remplacement
+  $('btn-search-toggle').addEventListener('click', openSearchBar);
+  $('btn-search-close').addEventListener('click', () => $('search-bar').classList.add('hidden'));
+  $('search-input').addEventListener('input', updateSearchCount);
+  $('replace-input').addEventListener('keydown', e => { if (e.key === 'Enter') doReplaceAll(); });
+  $('btn-replace-all').addEventListener('click', doReplaceAll);
+
+  // Normalisation des chiffres
+  $('btn-normalize').addEventListener('click', doNormalize);
 
   // Player
   btnPlay.addEventListener('click', togglePlay);
@@ -746,6 +763,85 @@ async function doBatchCalibrate() {
     ).join('');
   } catch(e) { alert('Erreur : ' + e.message); }
   finally { loading.classList.add('hidden'); }
+}
+
+// ── Search & Replace ──────────────────────────────────────────────────────
+function openSearchBar() {
+  const bar = $('search-bar');
+  bar.classList.remove('hidden');
+  const inp = $('search-input');
+  inp.focus();
+  inp.select();
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function updateSearchCount() {
+  const q = $('search-input').value.trim();
+  if (!q || !S.blocks.length) { $('search-count').textContent = ''; return; }
+  let count = 0;
+  const re = new RegExp(escapeRegex(q), 'gi');
+  S.blocks.forEach(b => b.lines.forEach(l => {
+    count += (l.match(re) || []).length;
+  }));
+  $('search-count').textContent = `${count} résultat${count !== 1 ? 's' : ''}`;
+}
+
+function doReplaceAll() {
+  const q = $('search-input').value;
+  const r = $('replace-input').value;
+  if (!q || !S.blocks.length) return;
+
+  const re = new RegExp(escapeRegex(q), 'gi');
+  // Count occurrences first (before modifying)
+  let total = 0;
+  S.blocks.forEach(b => b.lines.forEach(l => { total += (l.match(re) || []).length; }));
+  if (total === 0) { $('search-count').textContent = '0 résultat'; return; }
+
+  pushHistory();
+
+  S.blocks.forEach(b => {
+    const newLines = b.lines.map(l => l.replace(re, r));
+    if (newLines.join('') !== b.lines.join('')) {
+      b.lines = newLines;
+      b.text = newLines.join(' ');
+      b.modified = true;
+      recomputeMetrics(b);
+    }
+  });
+
+  $('search-count').textContent = `${total} remplacement${total !== 1 ? 's' : ''} effectué${total !== 1 ? 's' : ''}`;
+  renderBlockList();
+  renderPreview();
+}
+
+// ── Normalisation des chiffres ─────────────────────────────────────────────
+async function doNormalize() {
+  if (!S.blocks.length) return;
+
+  loadingMsg.textContent = 'Normalisation des chiffres…';
+  loading.classList.remove('hidden');
+
+  try {
+    const res = await fetch('/api/normalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blocks: S.blocks }),
+    });
+    if (!res.ok) { alert('Erreur normalisation'); return; }
+    const data = await res.json();
+
+    pushHistory();
+    S.blocks = data.blocks;
+    renderBlockList();
+    selectBlock(S.selectedIdx);
+  } catch(e) {
+    alert('Erreur : ' + e.message);
+  } finally {
+    loading.classList.add('hidden');
+  }
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────

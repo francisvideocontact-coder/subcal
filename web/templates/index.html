@@ -117,6 +117,7 @@
     <!-- Export (visible après calibration) -->
     <div id="sidebar-actions" class="sidebar-actions hidden">
       <button id="btn-export" class="btn btn-ghost btn-full">Exporter SRT</button>
+      <button id="btn-normalize" class="btn btn-ghost btn-full">Normaliser chiffres</button>
       <label class="btn btn-ghost btn-full">
         <input type="checkbox" id="filter-modified"> Modifiés seulement
       </label>
@@ -145,6 +146,15 @@
         <span id="editor-filename" class="filename"></span>
         <span id="block-count" class="text-dim"></span>
         <span id="calibrated-badge" class="calibrated-badge hidden">Calibré</span>
+        <button id="btn-search-toggle" class="btn btn-ghost btn-sm" title="Rechercher / Remplacer (⌘F)">⌕</button>
+      </div>
+      <!-- Barre Rechercher / Remplacer -->
+      <div id="search-bar" class="search-bar hidden">
+        <input type="text" id="search-input" class="search-input" placeholder="Rechercher…" autocomplete="off">
+        <input type="text" id="replace-input" class="search-input" placeholder="Remplacer par…" autocomplete="off">
+        <button id="btn-replace-all" class="btn btn-sm btn-primary">Remplacer</button>
+        <span id="search-count" class="search-count"></span>
+        <button id="btn-search-close" class="btn btn-ghost btn-sm" title="Fermer">✕</button>
       </div>
       <div id="block-list" class="block-list"></div>
     </div>
@@ -186,13 +196,13 @@
     </div>
 
     <div class="preview-font-row">
-      <span class="section-label">Police</span>
-      <div class="font-size-btns">
-        <button class="btn-font-size" data-size="9px">S</button>
-        <button class="btn-font-size active" data-size="11px">M</button>
-        <button class="btn-font-size" data-size="14px">L</button>
-        <button class="btn-font-size" data-size="17px">XL</button>
-      </div>
+      <span class="section-label">Police <span id="lbl-font-size">11px</span></span>
+      <input type="range" id="cfg-font-size" min="7" max="20" value="11" step="1" style="width:100%">
+    </div>
+
+    <div class="preview-font-row">
+      <span class="section-label">Taille panneau <span id="lbl-preview-width">260px</span></span>
+      <input type="range" id="cfg-preview-width" min="220" max="600" value="260" step="10" style="width:100%">
     </div>
 
     <div class="preview-wrap">

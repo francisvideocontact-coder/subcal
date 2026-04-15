@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from engine.calibrator import calibrate_srt, CalibrationResult
+from engine.normalizer import normalize_blocks
 from engine.parser import parse_srt, write_srt, ms_to_timecode, SRTBlock
 from engine.rules import CalibrationRules, VALID_FORMATS
 
@@ -297,6 +298,15 @@ async def batch_calibrate(
         media_type="application/zip",
         headers=headers,
     )
+
+
+@app.post("/api/normalize")
+async def normalize_numbers_endpoint(request: dict):
+    """Convert French written numbers to digits in subtitle blocks."""
+    blocks = request.get("blocks", [])
+    if not blocks:
+        raise HTTPException(400, "Aucun bloc fourni")
+    return {"blocks": normalize_blocks(blocks)}
 
 
 @app.get("/api/presets")
