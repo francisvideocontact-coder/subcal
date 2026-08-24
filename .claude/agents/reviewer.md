@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Revieweur de code — lit les fichiers modifiés, lance les tests, produit une review factuelle classée par sévérité.
+description: Revieweur de code, lit les fichiers modifiés, lance les tests, produit une review factuelle classée par sévérité.
 model: claude-sonnet-4-6
 tools:
   - Read

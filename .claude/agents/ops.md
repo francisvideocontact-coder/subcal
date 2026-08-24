@@ -1,6 +1,6 @@
 ---
 name: ops
-description: Agent de déploiement — vérifie les prérequis, demande confirmation, déploie sur Vercel/Supabase uniquement si la review est propre.
+description: Agent de déploiement, vérifie les prérequis, demande confirmation, déploie sur Vercel/Supabase uniquement si la review est propre.
 model: claude-sonnet-4-6
 tools:
   - Read
