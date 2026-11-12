@@ -1,9 +1,9 @@
 """
-SRT recalibration engine — 3-pass algorithm.
+SRT recalibration engine: 3-pass algorithm.
 
-Pass 1 — Merge: flatten all blocks into a word stream with interpolated timecodes.
-Pass 2 — Semantic segmentation: re-cut by meaning units (sentences, syntactic groups).
-Pass 3 — Technical adjustment: enforce CPL, CPS, min/max duration, min gap.
+Pass 1: Merge: flatten all blocks into a word stream with interpolated timecodes.
+Pass 2: Semantic segmentation: re-cut by meaning units (sentences, syntactic groups).
+Pass 3: Technical adjustment: enforce CPL, CPS, min/max duration, min gap.
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ PREPOSITIONS = {
     "lors", "via", "selon", "malgré",
 }
 
-# Articles / determiners — NEVER separate from following noun
+# Articles / determiners: NEVER separate from following noun
 ARTICLES = {"le", "la", "les", "un", "une", "des", "l", "d", "du", "aux"}
 
 # Short adjectives that must stay with their noun
@@ -51,7 +51,7 @@ SHORT_ADJ = {
     "même", "seul", "seule", "autre", "tel", "telle",
 }
 
-# Auxiliaries — NEVER separate from following participle
+# Auxiliaries: NEVER separate from following participle
 AUXILIARIES = {"a", "ai", "as", "avons", "avez", "ont", "est", "es",
                "sommes", "êtes", "sont", "était", "avait", "sera",
                "serait", "aurait", "aura"}
@@ -109,20 +109,20 @@ def calibrate_srt(
     if not blocks:
         return CalibrationResult([], 0, 0, 0, ["Empty file"])
 
-    # Pass 0 — FPS conversion
+    # Pass 0: FPS conversion
     if rules.needs_fps_conversion:
         blocks = _convert_fps(blocks, rules.fps_ratio)
 
-    # Pass 1 — Merge into word stream
+    # Pass 1: Merge into word stream
     words = _merge_to_words(blocks)
 
-    # Pass 2 — Semantic segmentation (or keep original segmentation)
+    # Pass 2: Semantic segmentation (or keep original segmentation)
     if rules.semantic_segmentation:
         segments = _semantic_segment(words, rules)
     else:
         segments = _words_to_segments_original(words, blocks)
 
-    # Pass 3 — Technical adjustment
+    # Pass 3: Technical adjustment
     calibrated, recal_count, split_count = _technical_adjust(segments, rules, errors)
 
     # Renumber
@@ -234,7 +234,7 @@ def _segment_sentence(sentence: List[Word], rules: CalibrationRules) -> List[Lis
     if len(lines) <= rules.max_lines:
         return [sentence]
 
-    # Need to split — find best cut point respecting max_lines
+    # Need to split: find best cut point respecting max_lines
     segments: List[List[Word]] = []
     remaining = list(sentence)
 
@@ -263,7 +263,7 @@ def _find_cut_point(words: List[Word], max_cpl: int, max_lines: int = 1) -> int:
             break
 
     if max_fit == 0:
-        # Even a single word needs more lines — keep it anyway
+        # Even a single word needs more lines: keep it anyway
         return 1
 
     if max_fit >= len(words):
@@ -280,7 +280,7 @@ def _best_semantic_cut(words: List[Word], max_fit: int) -> int:
     Find the best cut position in words[0:max_fit].
     Scans from right to left for semantic break points.
     """
-    # 1. After punctuation (not sentence-ending — those end blocks)
+    # 1. After punctuation (not sentence-ending: those end blocks)
     for i in range(max_fit - 1, 0, -1):
         if re.search(r"[,;:]$", words[i].text):
             # Don't break if next word is an article or aux
@@ -381,7 +381,7 @@ def _wrap_text(text: str, max_cpl: int) -> List[str]:
                 lines.append(current)
                 current = word
             else:
-                # Word alone exceeds max_cpl — keep it
+                # Word alone exceeds max_cpl: keep it
                 lines.append(word)
                 current = ""
 

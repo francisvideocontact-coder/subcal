@@ -1,5 +1,5 @@
 """
-engine/normalizer.py — Conversion des nombres français écrits en chiffres.
+engine/normalizer.py : Conversion des nombres français écrits en chiffres.
 
 Exemples :
   "j'ai quatorze ans"          → "j'ai 14 ans"
@@ -27,7 +27,7 @@ def _build_number_dict() -> Dict[str, int]:
 
     d: Dict[str, int] = {}
 
-    # 0, 2–19 — 'un'/'une' délibérément exclus : ce sont aussi des articles
+    # 0, 2-19 : 'un'/'une' délibérément exclus : ce sont aussi des articles
     # indéfinis ("un film", "une journée") qui produiraient des faux positifs massifs.
     for i, w in enumerate(units):
         if i == 1:   # skip 'un'
@@ -35,7 +35,7 @@ def _build_number_dict() -> Dict[str, int]:
         d[w] = i
     d['zero'] = 0   # variant sans accent
 
-    # 20–69 (dizaines simples + composés)
+    # 20-69 (dizaines simples + composés)
     simple_tens = [
         (20, 'vingt'), (30, 'trente'), (40, 'quarante'),
         (50, 'cinquante'), (60, 'soixante'),
@@ -47,7 +47,7 @@ def _build_number_dict() -> Dict[str, int]:
         for i in range(2, 10):
             d[f'{word}-{units[i]}'] = val + i
 
-    # 70–79 (soixante-dix…)
+    # 70-79 (soixante-dix…)
     d['soixante-dix'] = 70
     d['soixante-et-onze'] = 71
     d['soixante-onze'] = 71
@@ -56,7 +56,7 @@ def _build_number_dict() -> Dict[str, int]:
     for i in range(12, 20):
         d[f'soixante-{units[i]}'] = 60 + i   # soixante-douze=72, …
 
-    # 80–99 (quatre-vingt…)
+    # 80-99 (quatre-vingt…)
     d['quatre-vingts'] = 80
     d['quatre-vingt'] = 80
     d['quatre-vingt-un'] = 81
@@ -66,7 +66,7 @@ def _build_number_dict() -> Dict[str, int]:
     for i in range(10, 20):
         d[f'quatre-vingt-{units[i]}'] = 80 + i
 
-    # Centaines rondes — 'cent' seul exclu pour éviter "pour cent" → "pour 100"
+    # Centaines rondes : 'cent' seul exclu pour éviter "pour cent" → "pour 100"
     hundreds_prefixes = [
         '', '', 'deux cents', 'trois cents', 'quatre cents',
         'cinq cents', 'six cents', 'sept cents', 'huit cents', 'neuf cents',
